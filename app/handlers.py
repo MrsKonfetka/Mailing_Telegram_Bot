@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import app.keyboards as kb
-from app.database import add_user
+from app.database import add_user, add_mailing, add_mailing_channel
 
 router = Router()
 
@@ -106,10 +106,13 @@ async def handle_mailing_message(message: Message, state: FSMContext):
         mailing_message = message.text
         channels = ['@testchanelodin', '@testchaneldva'] 
 
+        mailing_id = add_mailing(mailing_message)
+
         for channel in channels:
             try:
                 await message.bot.send_message(chat_id=channel, text=mailing_message)
                 await message.answer(f'Сообщение отправлено в {channel}')
+                add_mailing_channel(mailing_id, channel)
             except Exception as e:
                 await message.answer(f'Не удалось отправить сообщение в {channel}: {str(e)}')
 
@@ -136,10 +139,13 @@ async def handle_button_url(message: Message, state: FSMContext):
         markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
         channels = ['@testchanelodin', '@testchaneldva']
 
+        mailing_id = add_mailing(content=mailing_message, button_text=button_text, button_url=button_url)
+
         for channel in channels:
             try:
                 await message.bot.send_message(chat_id=channel, text=mailing_message, reply_markup=markup)
                 await message.answer(f'Сообщение с кнопкой отправлено в {channel}')
+                add_mailing_channel(mailing_id, channel)
             except Exception as e:
                 await message.answer(f'Не удалось отправить сообщение в {channel}: {str(e)}')
     else:
@@ -148,10 +154,13 @@ async def handle_button_url(message: Message, state: FSMContext):
         markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
         channels = ['@testchanelodin', '@testchaneldva']
 
+        mailing_id = add_mailing(content=caption, image_id=image, button_text=button_text, button_url=button_url)
+
         for channel in channels:
             try:
                 await message.bot.send_photo(chat_id=channel, photo=image, caption=caption, reply_markup=markup)
                 await message.answer(f'Изображение с кнопкой отправлено в {channel}')
+                add_mailing_channel(mailing_id, channel)
             except Exception as e:
                 await message.answer(f'Не удалось отправить изображение в {channel}: {str(e)}')
 
@@ -165,10 +174,13 @@ async def handle_image(message: Message, state: FSMContext):
     caption = message.caption
     channels = ['@testchanelodin', '@testchaneldva']
 
+    mailing_id = add_mailing(content=caption, image_id=image)
+
     for channel in channels:
         try:
             await message.bot.send_photo(chat_id=channel, photo=image, caption=caption)
             await message.answer(f'Изображение отправлено в {channel}')
+            add_mailing_channel(mailing_id, channel)
         except Exception as e:
             await message.answer(f'Не удалось отправить изображение в {channel}: {str(e)}')
 
@@ -201,6 +213,7 @@ async def handle_button_url(message: Message, state: FSMContext):
 
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
     channels = ['@testchanelodin', '@testchaneldva']
+    
 
     for channel in channels:
         try:

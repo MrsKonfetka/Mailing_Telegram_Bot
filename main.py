@@ -7,7 +7,7 @@ from app.database import create_tables
 from config import TOKEN
 
 async def main():
-    # create_tables()
+    create_tables()
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
     dp.include_router(router)
