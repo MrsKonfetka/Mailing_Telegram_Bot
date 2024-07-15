@@ -55,6 +55,10 @@ class Mailing(StatesGroup):
     image_caption = State()
     image_caption_button = State()
     button_url = State()
+    video_caption = State()
+    video_caption_button = State()
+    video_button_text = State()
+    video_button_url = State()
 
 @router.message(F.text == 'Создать рассылку')
 async def mailing(message: Message):
@@ -85,6 +89,18 @@ async def text_img_btn(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer('Пожалуйста, отправьте изображение с подписью.')
     await callback.answer()
 
+@router.callback_query(F.data == 'text_video')
+async def text_video(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Mailing.video_caption)
+    await callback.message.answer('Пожалуйста, отправьте видео с подписью.')
+    await callback.answer()
+
+@router.callback_query(F.data == 'text_video_btn')
+async def text_video_btn(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Mailing.video_caption_button)
+    await callback.message.answer('Пожалуйста, отправьте видео с подписью.')
+    await callback.answer()
+
 @router.message(Mailing.image_caption_button, F.photo)
 async def handle_image_caption_button(message: Message, state: FSMContext):
     image = message.photo[-1].file_id
@@ -93,6 +109,33 @@ async def handle_image_caption_button(message: Message, state: FSMContext):
     await state.set_state(Mailing.button_text)
     await message.answer('Пожалуйста, отправьте текст для кнопки.')
     
+@router.message(Mailing.video_caption, F.video)
+async def handle_video_caption(message: Message, state: FSMContext):
+    video = message.video.file_id
+    caption = message.caption
+    channels = ['@testchanelodin', '@testchaneldva']
+
+    mailing_id = add_mailing(content=caption, video_id=video)
+
+    for channel in channels:
+        try:
+            await message.bot.send_video(chat_id=channel, video=video, caption=caption)
+            await message.answer(f'Видео отправлено в {channel}')
+            add_mailing_channel(mailing_id, channel)
+        except Exception as e:
+            await message.answer(f'Не удалось отправить видео в {channel}: {str(e)}')
+
+    await state.clear()
+    await message.answer('Процесс отправки завершен.')
+
+@router.message(Mailing.video_caption_button, F.video)
+async def handle_video_caption_button(message: Message, state: FSMContext):
+    video = message.video.file_id
+    caption = message.caption or ''
+    await state.update_data(video=video, caption=caption)
+    await state.set_state(Mailing.video_button_text)
+    await message.answer('Пожалуйста, отправьте текст для кнопки.')
+
 @router.message(Mailing.message)
 async def handle_mailing_message(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -126,6 +169,13 @@ async def handle_button_text(message: Message, state: FSMContext):
     button_text = message.text
     await state.update_data(button_text=button_text)
     await state.set_state(Mailing.button_url)
+    await message.answer('Пожалуйста, отправьте URL для кнопки.')
+
+@router.message(Mailing.video_button_text)
+async def handle_video_button_text(message: Message, state: FSMContext):
+    button_text = message.text
+    await state.update_data(button_text=button_text)
+    await state.set_state(Mailing.video_button_url)
     await message.answer('Пожалуйста, отправьте URL для кнопки.')
 
 @router.message(Mailing.button_url)
@@ -167,6 +217,29 @@ async def handle_button_url(message: Message, state: FSMContext):
     await state.clear()
     await message.answer('Процесс отправки завершен.')
 
+@router.message(Mailing.video_button_url)
+async def handle_video_button_url(message: Message, state: FSMContext):
+    data = await state.get_data()
+    button_url = message.text
+    button_text = data['button_text']
+    video = data['video']
+    caption = data['caption']
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
+    channels = ['@testchanelodin', '@testchaneldva']
+
+    mailing_id = add_mailing(content=caption, video_id=video, button_text=button_text, button_url=button_url)
+
+    for channel in channels:
+        try:
+            await message.bot.send_video(chat_id=channel, video=video, caption=caption, reply_markup=markup)
+            await message.answer(f'Видео с кнопкой отправлено в {channel}')
+            add_mailing_channel(mailing_id, channel)
+        except Exception as e:
+            await message.answer(f'Не удалось отправить видео в {channel}: {str(e)}')
+
+    await state.clear()
+    await message.answer('Процесс отправки завершен.')
+    
 @router.message(Mailing.image_caption, F.photo)
 async def handle_image(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -187,7 +260,6 @@ async def handle_image(message: Message, state: FSMContext):
     await state.clear()
     await message.answer('Процесс отправки завершен.')
 
-
 @router.message(Mailing.image_caption_button, F.photo)
 async def handle_image_caption_button(message: Message, state: FSMContext):
     image = message.photo[-1].file_id
@@ -203,24 +275,3 @@ async def handle_button_text(message: Message, state: FSMContext):
     await state.set_state(Mailing.button_url)
     await message.answer('Пожалуйста, отправьте URL для кнопки.')
 
-@router.message(Mailing.button_url)
-async def handle_button_url(message: Message, state: FSMContext):
-    data = await state.get_data()
-    button_url = message.text
-    image = data['image']
-    caption = data['caption']
-    button_text = data['button_text']
-
-    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
-    channels = ['@testchanelodin', '@testchaneldva']
-    
-
-    for channel in channels:
-        try:
-            await message.bot.send_photo(chat_id=channel, photo=image, caption=caption, reply_markup=markup)
-            await message.answer(f'Изображение с кнопкой отправлено в {channel}')
-        except Exception as e:
-            await message.answer(f'Не удалось отправить изображение в {channel}: {str(e)}')
-
-    await state.clear()
-    await message.answer('Процесс отправки завершен.')

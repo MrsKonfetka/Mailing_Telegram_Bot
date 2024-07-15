@@ -12,4 +12,7 @@ mailing = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Текст', callback_data='text')],
         [InlineKeyboardButton(text='Текст с кнопкой', callback_data='text_btn')],
         [InlineKeyboardButton(text='Изображение с текстом', callback_data='text_img')],
-        [InlineKeyboardButton(text='Изображение с текстом и кнопкой', callback_data='text_img_btn')]])
+        [InlineKeyboardButton(text='Изображение с текстом и кнопкой', callback_data='text_img_btn')],
+        [InlineKeyboardButton(text='Видео с текстом', callback_data='text_video')],
+        [InlineKeyboardButton(text='Видео с текстом и кнопкой', callback_data='text_video_btn')]
+        ])

@@ -31,6 +31,7 @@ def create_tables():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT,
                 image_id TEXT,
+                video_id TEXT,
                 button_text TEXT,
                 button_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -53,13 +54,13 @@ def add_user(name, age, number):
             VALUES (?, ?, ?)
         ''', (name, age, number))
 
-def add_mailing(content=None, image_id=None, button_text=None, button_url=None):
+def add_mailing(content=None, image_id=None, video_id=None, button_text=None, button_url=None):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO mailings (content, image_id, button_text, button_url)
-            VALUES (?, ?, ?, ?)
-        ''', (content, image_id, button_text, button_url))
+            INSERT INTO mailings (content, image_id, video_id, button_text, button_url)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (content, image_id, video_id, button_text, button_url))
         return cursor.lastrowid
 
 def add_mailing_channel(mailing_id, channel_name):
