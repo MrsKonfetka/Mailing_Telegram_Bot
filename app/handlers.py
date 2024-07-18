@@ -109,17 +109,20 @@ async def handle_image_caption_button(message: Message, state: FSMContext):
     await state.set_state(Mailing.button_text)
     await message.answer('Пожалуйста, отправьте текст для кнопки.')
     
-@router.message(Mailing.video_caption, F.video)
+@router.message(Mailing.video_caption, F.video | F.animation)
 async def handle_video_caption(message: Message, state: FSMContext):
-    video = message.video.file_id
+    if message.video:
+        media = message.video.file_id
+    else:
+        media = message.animation.file_id
     caption = message.caption
     channels = ['@testchanelodin', '@testchaneldva']
 
-    mailing_id = add_mailing(content=caption, video_id=video)
+    mailing_id = add_mailing(content=caption, video_id=media)
 
     for channel in channels:
         try:
-            await message.bot.send_video(chat_id=channel, video=video, caption=caption)
+            await message.bot.send_video(chat_id=channel, video=media, caption=caption)
             await message.answer(f'Видео отправлено в {channel}')
             add_mailing_channel(mailing_id, channel)
         except Exception as e:
@@ -128,11 +131,14 @@ async def handle_video_caption(message: Message, state: FSMContext):
     await state.clear()
     await message.answer('Процесс отправки завершен.')
 
-@router.message(Mailing.video_caption_button, F.video)
+@router.message(Mailing.video_caption_button, F.video | F.animation)
 async def handle_video_caption_button(message: Message, state: FSMContext):
-    video = message.video.file_id
+    if message.video:
+        media = message.video.file_id
+    else:
+        media = message.animation.file_id
     caption = message.caption or ''
-    await state.update_data(video=video, caption=caption)
+    await state.update_data(video=media, caption=caption)
     await state.set_state(Mailing.video_button_text)
     await message.answer('Пожалуйста, отправьте текст для кнопки.')
 
@@ -165,7 +171,6 @@ async def handle_mailing_message(message: Message, state: FSMContext):
 @router.message(Mailing.button_text)
 async def handle_button_text(message: Message, state: FSMContext):
     data = await state.get_data()
-    # mailing_message = data.get('mailing_message')
     button_text = message.text
     await state.update_data(button_text=button_text)
     await state.set_state(Mailing.button_url)
@@ -274,4 +279,3 @@ async def handle_button_text(message: Message, state: FSMContext):
     await state.update_data(button_text=button_text)
     await state.set_state(Mailing.button_url)
     await message.answer('Пожалуйста, отправьте URL для кнопки.')
-
