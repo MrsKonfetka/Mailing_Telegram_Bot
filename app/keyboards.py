@@ -6,13 +6,9 @@ main = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Создать рас
 
 get_number = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Sent telephone number', 
                                                            request_contact=True)]],
-                                resize_keyboard = True)
+                                resize_keyboard=True)
 
-mailing = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Текст', callback_data='text')],
-        [InlineKeyboardButton(text='Текст с кнопкой', callback_data='text_btn')],
-        [InlineKeyboardButton(text='Изображение с текстом', callback_data='text_img')],
-        [InlineKeyboardButton(text='Изображение с текстом и кнопкой', callback_data='text_img_btn')],
-        [InlineKeyboardButton(text='Видео с текстом', callback_data='text_video')],
-        [InlineKeyboardButton(text='Видео с текстом и кнопкой', callback_data='text_video_btn')]
-        ])
+add_button_prompt = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Да', callback_data='yes')],
+    [InlineKeyboardButton(text='Нет', callback_data='no')]
+])

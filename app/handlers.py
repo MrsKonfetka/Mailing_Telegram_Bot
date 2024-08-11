@@ -3,7 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 import app.keyboards as kb
 from app.database import add_user, add_mailing, add_mailing_channel
@@ -51,231 +51,91 @@ async def register_number(message: Message, state: FSMContext):
 class Mailing(StatesGroup):
     message = State()
     button_text = State()
-    image = State()
-    image_caption = State()
-    image_caption_button = State()
     button_url = State()
-    video_caption = State()
-    video_caption_button = State()
-    video_button_text = State()
-    video_button_url = State()
 
 @router.message(F.text == 'Создать рассылку')
-async def mailing(message: Message):
-    await message.answer('Что отправим?', reply_markup=kb.mailing)
-
-@router.callback_query(F.data == 'text')
-async def text(callback: CallbackQuery, state: FSMContext):
+async def mailing(message: Message, state: FSMContext):
     await state.set_state(Mailing.message)
-    await callback.message.answer('Пожалуйста, отправьте сообщение, которое вы хотите разослать.')
-    await callback.answer()
+    await message.answer('Отправьте сообщение для рассылки.')
 
-@router.callback_query(F.data == 'text_btn')
-async def text_btn(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mailing.message)
-    await callback.message.answer('Пожалуйста, отправьте сообщение, которое вы хотитe разослать.')
-    await callback.answer()
-    await state.update_data(with_button=True)
+@router.message(Mailing.message, F.text)
+async def handle_text_message(message: Message, state: FSMContext):
+    await state.update_data(content=message.text, media_type='text')
+    await ask_for_button(message, state)
 
-@router.callback_query(F.data == 'text_img')
-async def text_img(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mailing.image_caption)
-    await callback.message.answer('Пожалуйста, отправьте изображение с подписью.')
-    await callback.answer()
-
-@router.callback_query(F.data == 'text_img_btn')
-async def text_img_btn(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mailing.image_caption_button)
-    await callback.message.answer('Пожалуйста, отправьте изображение с подписью.')
-    await callback.answer()
-
-@router.callback_query(F.data == 'text_video')
-async def text_video(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mailing.video_caption)
-    await callback.message.answer('Пожалуйста, отправьте видео с подписью.')
-    await callback.answer()
-
-@router.callback_query(F.data == 'text_video_btn')
-async def text_video_btn(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mailing.video_caption_button)
-    await callback.message.answer('Пожалуйста, отправьте видео с подписью.')
-    await callback.answer()
-
-@router.message(Mailing.image_caption_button, F.photo)
-async def handle_image_caption_button(message: Message, state: FSMContext):
+@router.message(Mailing.message, F.photo)
+async def handle_image_message(message: Message, state: FSMContext):
     image = message.photo[-1].file_id
     caption = message.caption or ''
-    await state.update_data(image=image, caption=caption)
-    await state.set_state(Mailing.button_text)
-    await message.answer('Пожалуйста, отправьте текст для кнопки.')
-    
-@router.message(Mailing.video_caption, F.video | F.animation)
-async def handle_video_caption(message: Message, state: FSMContext):
-    if message.video:
-        media = message.video.file_id
-    else:
-        media = message.animation.file_id
-    caption = message.caption
-    channels = ['@testchanelodin', '@testchaneldva']
+    await state.update_data(content=caption, media=image, media_type='photo')
+    await ask_for_button(message, state)
 
-    mailing_id = add_mailing(content=caption, video_id=media)
-
-    for channel in channels:
-        try:
-            await message.bot.send_video(chat_id=channel, video=media, caption=caption)
-            await message.answer(f'Видео отправлено в {channel}')
-            add_mailing_channel(mailing_id, channel)
-        except Exception as e:
-            await message.answer(f'Не удалось отправить видео в {channel}: {str(e)}')
-
-    await state.clear()
-    await message.answer('Процесс отправки завершен.')
-
-@router.message(Mailing.video_caption_button, F.video | F.animation)
-async def handle_video_caption_button(message: Message, state: FSMContext):
+@router.message(Mailing.message, F.video | F.animation)
+async def handle_video_message(message: Message, state: FSMContext):
     if message.video:
         media = message.video.file_id
     else:
         media = message.animation.file_id
     caption = message.caption or ''
-    await state.update_data(video=media, caption=caption)
-    await state.set_state(Mailing.video_button_text)
-    await message.answer('Пожалуйста, отправьте текст для кнопки.')
+    await state.update_data(content=caption, media=media, media_type='video')
+    await ask_for_button(message, state)
 
-@router.message(Mailing.message)
-async def handle_mailing_message(message: Message, state: FSMContext):
-    data = await state.get_data()
-    with_button = data.get('with_button', False)
+async def ask_for_button(message: Message, state: FSMContext):
+    markup = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text='Да'), KeyboardButton(text='Нет')]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    await message.answer('Хотите добавить кнопку?', reply_markup=markup)
+    await state.set_state(Mailing.button_text)
 
-    if with_button:
-        await state.set_state(Mailing.button_text)
-        await state.update_data(mailing_message=message.text)
-        await message.answer('Пожалуйста, отправьте текст для кнопки.')
-    else:
-        mailing_message = message.text
-        channels = ['@testchanelodin', '@testchaneldva'] 
-
-        mailing_id = add_mailing(mailing_message)
-
-        for channel in channels:
-            try:
-                await message.bot.send_message(chat_id=channel, text=mailing_message)
-                await message.answer(f'Сообщение отправлено в {channel}')
-                add_mailing_channel(mailing_id, channel)
-            except Exception as e:
-                await message.answer(f'Не удалось отправить сообщение в {channel}: {str(e)}')
-
-        await state.clear()
-        await message.answer('Процесс отправки завершен.')
-
-@router.message(Mailing.button_text)
-async def handle_button_text(message: Message, state: FSMContext):
-    data = await state.get_data()
-    button_text = message.text
-    await state.update_data(button_text=button_text)
+@router.message(Mailing.button_text, F.text == 'Да')
+async def ask_button_text(message: Message, state: FSMContext):
+    await message.answer('Пожалуйста, отправьте текст для кнопки.', reply_markup=ReplyKeyboardMarkup(resize_keyboard=True))
     await state.set_state(Mailing.button_url)
-    await message.answer('Пожалуйста, отправьте URL для кнопки.')
 
-@router.message(Mailing.video_button_text)
-async def handle_video_button_text(message: Message, state: FSMContext):
-    button_text = message.text
-    await state.update_data(button_text=button_text)
-    await state.set_state(Mailing.video_button_url)
+@router.message(Mailing.button_text, F.text == 'Нет')
+async def finish_mailing(message: Message, state: FSMContext):
+    await send_mailing(message, state)
+    await state.clear()
+
+@router.message(Mailing.button_url)
+async def ask_button_url(message: Message, state: FSMContext):
+    await state.update_data(button_text=message.text)
     await message.answer('Пожалуйста, отправьте URL для кнопки.')
 
 @router.message(Mailing.button_url)
-async def handle_button_url(message: Message, state: FSMContext):
+async def finish_mailing_with_button(message: Message, state: FSMContext):
+    await state.update_data(button_url=message.text)
+    await send_mailing(message, state)
+    await state.clear()
+
+async def send_mailing(message: Message, state: FSMContext):
     data = await state.get_data()
-    button_url = message.text
-    button_text = data['button_text']
+    content = data['content']
+    media_type = data.get('media_type')
+    button_text = data.get('button_text')
+    button_url = data.get('button_url')
+    channels = ['@testchanelodin', '@testchaneldva'] 
 
-    if 'mailing_message' in data:
-        mailing_message = data['mailing_message']
+    if button_text and button_url:
         markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
-        channels = ['@testchanelodin', '@testchaneldva']
-
-        mailing_id = add_mailing(content=mailing_message, button_text=button_text, button_url=button_url)
-
-        for channel in channels:
-            try:
-                await message.bot.send_message(chat_id=channel, text=mailing_message, reply_markup=markup)
-                await message.answer(f'Сообщение с кнопкой отправлено в {channel}')
-                add_mailing_channel(mailing_id, channel)
-            except Exception as e:
-                await message.answer(f'Не удалось отправить сообщение в {channel}: {str(e)}')
     else:
-        image = data['image']
-        caption = data['caption']
-        markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
-        channels = ['@testchanelodin', '@testchaneldva']
+        markup = None
 
-        mailing_id = add_mailing(content=caption, image_id=image, button_text=button_text, button_url=button_url)
-
-        for channel in channels:
-            try:
-                await message.bot.send_photo(chat_id=channel, photo=image, caption=caption, reply_markup=markup)
-                await message.answer(f'Изображение с кнопкой отправлено в {channel}')
-                add_mailing_channel(mailing_id, channel)
-            except Exception as e:
-                await message.answer(f'Не удалось отправить изображение в {channel}: {str(e)}')
-
-    await state.clear()
-    await message.answer('Процесс отправки завершен.')
-
-@router.message(Mailing.video_button_url)
-async def handle_video_button_url(message: Message, state: FSMContext):
-    data = await state.get_data()
-    button_url = message.text
-    button_text = data['button_text']
-    video = data['video']
-    caption = data['caption']
-    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
-    channels = ['@testchanelodin', '@testchaneldva']
-
-    mailing_id = add_mailing(content=caption, video_id=video, button_text=button_text, button_url=button_url)
+    mailing_id = add_mailing(content=content, image_id=data.get('media'), video_id=data.get('media'), button_text=button_text, button_url=button_url)
 
     for channel in channels:
         try:
-            await message.bot.send_video(chat_id=channel, video=video, caption=caption, reply_markup=markup)
-            await message.answer(f'Видео с кнопкой отправлено в {channel}')
+            if media_type == 'text':
+                await message.bot.send_message(chat_id=channel, text=content, reply_markup=markup)
+            elif media_type == 'photo':
+                await message.bot.send_photo(chat_id=channel, photo=data['media'], caption=content, reply_markup=markup)
+            elif media_type == 'video':
+                await message.bot.send_video(chat_id=channel, video=data['media'], caption=content, reply_markup=markup)
+            await message.answer(f'Сообщение отправлено в {channel}')
             add_mailing_channel(mailing_id, channel)
         except Exception as e:
-            await message.answer(f'Не удалось отправить видео в {channel}: {str(e)}')
+            await message.answer(f'Не удалось отправить сообщение в {channel}: {str(e)}')
 
-    await state.clear()
-    await message.answer('Процесс отправки завершен.')
-    
-@router.message(Mailing.image_caption, F.photo)
-async def handle_image(message: Message, state: FSMContext):
-    data = await state.get_data()
-    image = message.photo[-1].file_id
-    caption = message.caption
-    channels = ['@testchanelodin', '@testchaneldva']
-
-    mailing_id = add_mailing(content=caption, image_id=image)
-
-    for channel in channels:
-        try:
-            await message.bot.send_photo(chat_id=channel, photo=image, caption=caption)
-            await message.answer(f'Изображение отправлено в {channel}')
-            add_mailing_channel(mailing_id, channel)
-        except Exception as e:
-            await message.answer(f'Не удалось отправить изображение в {channel}: {str(e)}')
-
-    await state.clear()
-    await message.answer('Процесс отправки завершен.')
-
-@router.message(Mailing.image_caption_button, F.photo)
-async def handle_image_caption_button(message: Message, state: FSMContext):
-    image = message.photo[-1].file_id
-    caption = message.caption or ''
-    await state.update_data(image=image, caption=caption)
-    await state.set_state(Mailing.button_text)
-    await message.answer('Пожалуйста, отправьте текст для кнопки.')
-
-@router.message(Mailing.button_text)
-async def handle_button_text(message: Message, state: FSMContext):
-    button_text = message.text
-    await state.update_data(button_text=button_text)
-    await state.set_state(Mailing.button_url)
-    await message.answer('Пожалуйста, отправьте URL для кнопки.')
+    await message.answer('Процесс отправки завершен.', reply_markup=kb.main)
