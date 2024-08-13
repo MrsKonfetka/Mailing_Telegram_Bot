@@ -91,24 +91,46 @@ async def ask_for_button(message: Message, state: FSMContext):
 
 @router.message(Mailing.button_text, F.text == 'Да')
 async def ask_button_text(message: Message, state: FSMContext):
-    await message.answer('Пожалуйста, отправьте текст для кнопки.', reply_markup=ReplyKeyboardMarkup(resize_keyboard=True))
+    await message.answer('Пожалуйста, отправьте текст для кнопки.', reply_markup=ReplyKeyboardMarkup(keyboard=[], resize_keyboard=True))
     await state.set_state(Mailing.button_url)
 
 @router.message(Mailing.button_text, F.text == 'Нет')
-async def finish_mailing(message: Message, state: FSMContext):
+async def finish_mailing_without_button(message: Message, state: FSMContext):
     await send_mailing(message, state)
     await state.clear()
-
-@router.message(Mailing.button_url)
-async def ask_button_url(message: Message, state: FSMContext):
-    await state.update_data(button_text=message.text)
-    await message.answer('Пожалуйста, отправьте URL для кнопки.')
+    await message.answer('Рассылка создана и отправлена без кнопки.', reply_markup=kb.main)
 
 @router.message(Mailing.button_url)
 async def finish_mailing_with_button(message: Message, state: FSMContext):
+    data = await state.get_data()
+    if 'button_text' not in data:
+        await state.update_data(button_text=message.text)
+        await message.answer('Теперь отправьте URL для кнопки.')
+    else:
+        await state.update_data(button_url=message.text)
+        await send_mailing(message, state)
+        await state.clear()
+        await message.answer('Рассылка создана и отправлена.', reply_markup=kb.main)
+
+async def send_mailing(message: Message, state: FSMContext):
+    data = await state.get_data()
+    content = data['content']
+    media_type = data.get('media_type')
+    button_text = data.get('button_text')
+    button_url = data.get('button_url')
+    
+    print(f"Debug: button_text = {button_text}, button_url = {button_url}")  # Для отладки
+    
+    if button_text and button_url:
+        markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=button_text, url=button_url)]])
+    else:
+        markup = None
+
     await state.update_data(button_url=message.text)
     await send_mailing(message, state)
     await state.clear()
+    
+    await message.answer('Рассылка создана и отправлена.', reply_markup=kb.main)
 
 async def send_mailing(message: Message, state: FSMContext):
     data = await state.get_data()
