@@ -52,6 +52,7 @@ class Mailing(StatesGroup):
     message = State()
     button_text = State()
     button_url = State()
+    sticker = State()
 
 @router.message(F.text == 'Создать рассылку')
 async def mailing(message: Message, state: FSMContext):
@@ -78,6 +79,12 @@ async def handle_video_message(message: Message, state: FSMContext):
         media = message.animation.file_id
     caption = message.caption or ''
     await state.update_data(content=caption, media=media, media_type='video')
+    await ask_for_button(message, state)
+
+@router.message(Mailing.message, F.sticker)
+async def handle_sticker_message(message: Message, state: FSMContext):
+    sticker_file_id = message.sticker.file_id
+    await state.update_data(content=sticker_file_id, media_type='sticker')
     await ask_for_button(message, state)
 
 async def ask_for_button(message: Message, state: FSMContext):
@@ -155,6 +162,11 @@ async def send_mailing(message: Message, state: FSMContext):
                 await message.bot.send_photo(chat_id=channel, photo=data['media'], caption=content, reply_markup=markup)
             elif media_type == 'video':
                 await message.bot.send_video(chat_id=channel, video=data['media'], caption=content, reply_markup=markup)
+            elif media_type == 'sticker':
+                await message.bot.send_sticker(chat_id=channel, sticker=content)
+                if markup:
+                    await message.bot.send_message(chat_id=channel, text="Дополнительная информация:", reply_markup=markup)
+                    
             await message.answer(f'Сообщение отправлено в {channel}')
             add_mailing_channel(mailing_id, channel)
         except Exception as e:
